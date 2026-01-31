@@ -93,12 +93,38 @@ app.use((err, req, res, next) => {
 // Initialize database connection
 let isConnected = false;
 
+const fixOldIndexes = async () => {
+  try {
+    const db = require('mongoose').connection.db;
+    if (!db) return;
+    
+    const collection = db.collection('files');
+    
+    // Try to drop the old encryptedName index if it exists
+    try {
+      await collection.dropIndex('encryptedName_1');
+      console.log('✅ Removed old encryptedName index');
+    } catch (error) {
+      // Index doesn't exist, which is fine
+      if (error.code !== 27 && !error.message.includes('index not found')) {
+        console.log('⚠️  Could not remove old index:', error.message);
+      }
+    }
+  } catch (error) {
+    // Silently fail - not critical
+  }
+};
+
 const initializeDB = async () => {
   if (!isConnected) {
     try {
       const conn = await connectDB();
       if (conn) {
         initGridFS(conn.connection);
+        
+        // Fix old indexes automatically
+        await fixOldIndexes();
+        
         isConnected = true;
         console.log('✅ Database and GridFS initialized');
       }
